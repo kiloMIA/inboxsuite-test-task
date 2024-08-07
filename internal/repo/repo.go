@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"inboxsuite/internal/models"
 	"inboxsuite/internal/repo/postgre"
 	"inboxsuite/internal/repo/rabbit"
 
@@ -22,4 +23,8 @@ func NewRepository(db *pgxpool.Pool, rmq *rabbit.RMQService) *Repository {
 
 func (r *Repository) LoadCache(logger *zap.Logger) (map[uint8]uint8, error) {
 	return postgre.LoadCache(r.DB, logger)
+}
+
+func (r *Repository) SaveMessage(msg models.ResultMessage, logger *zap.Logger) error {
+	return postgre.SaveMessage(r.DB, msg, logger)
 }

@@ -40,6 +40,8 @@ func NewRMQService(
 		return nil, err
 	}
 
+	logger.Info("RabbitMQ service initialized")
+
 	return &RMQService{
 		Channel:      ch,
 		ExchangeName: exchangeName,
@@ -68,13 +70,16 @@ func (r *RMQService) SendMessage(msg models.ResultMessage) error {
 	)
 	if err != nil {
 		r.Logger.Error("Failed to publish message", zap.Error(err))
+	} else {
+		r.Logger.Info("Message published", zap.Any("msg", msg))
 	}
 	return err
 }
 
 func (r *RMQService) IncrementCounter() {
-	atomic.AddInt32(&r.EventCount, 1)
-	if atomic.LoadInt32(&r.EventCount)%10 == 0 {
+	count := atomic.AddInt32(&r.EventCount, 1)
+	r.Logger.Info("Incremented event count", zap.Int32("count", count))
+	if count%10 == 0 {
 		r.SendStats(false)
 	}
 }
@@ -104,6 +109,8 @@ func (r *RMQService) SendStats(final bool) {
 	)
 	if err != nil {
 		r.Logger.Error("Failed to publish stats message", zap.Error(err))
+	} else {
+		r.Logger.Info("Stats message published", zap.Any("statsMsg", statsMsg))
 	}
 
 	if final {

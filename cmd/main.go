@@ -29,7 +29,12 @@ func main() {
 	logger := logger.CreateLogger()
 	defer logger.Sync()
 
+	logger.Info("Starting application")
+
 	dbpool := postgre.ConnectDB(logger)
+	if dbpool == nil {
+		logger.Fatal("Failed to create pgxpool connection")
+	}
 	defer dbpool.Close()
 
 	rmqService, err := rabbit.NewRMQService(
@@ -103,7 +108,7 @@ func main() {
 	msgs, err := ch.Consume(
 		queueName,
 		"",
-		true,
+		false,
 		false,
 		false,
 		false,
@@ -113,14 +118,22 @@ func main() {
 		logger.Fatal("Failed to register a consumer", zap.Error(err))
 	}
 
+	logger.Info("Waiting for messages...")
+
 	for msg := range msgs {
 		var profileMsg models.ProfileMessage
 		if err := json.Unmarshal(msg.Body, &profileMsg); err != nil {
 			logger.Warn("Failed to unmarshal message", zap.Error(err))
+			msg.Nack(false, true)
 			continue
 		}
+		logger.Info("Received message", zap.Any("profileMsg", profileMsg))
+
 		service.ProcessMessage(profileMsg)
+
+		msg.Ack(false)
 	}
 
 	service.Stop()
+	logger.Info("Application stopped")
 }
