@@ -11,7 +11,6 @@ import (
 	"inboxsuite/internal/service"
 	"os"
 
-	"github.com/streadway/amqp"
 	"go.uber.org/zap"
 )
 
@@ -47,6 +46,7 @@ func main() {
 	if err != nil {
 		logger.Fatal("Failed to create RabbitMQ service", zap.Error(err))
 	}
+	defer rmqService.Close()
 
 	repository := repo.NewRepository(dbpool, rmqService)
 	service := service.NewService(repository, *numWorkers, logger)
@@ -57,55 +57,7 @@ func main() {
 
 	service.StartWorkers(*numWorkers)
 
-	conn, err := amqp.Dial(os.Getenv("RABBITMQ_URL"))
-	if err != nil {
-		logger.Fatal("Failed to connect to RabbitMQ", zap.Error(err))
-	}
-	defer conn.Close()
-
-	ch, err := conn.Channel()
-	if err != nil {
-		logger.Fatal("Failed to open a channel", zap.Error(err))
-	}
-	defer ch.Close()
-
-	err = ch.ExchangeDeclare(
-		exchangeName,
-		"direct",
-		true,
-		false,
-		false,
-		false,
-		nil,
-	)
-	if err != nil {
-		logger.Fatal("Failed to declare an exchange", zap.Error(err))
-	}
-
-	_, err = ch.QueueDeclare(
-		queueName,
-		true,
-		false,
-		false,
-		false,
-		nil,
-	)
-	if err != nil {
-		logger.Fatal("Failed to declare queue", zap.Error(err))
-	}
-
-	err = ch.QueueBind(
-		queueName,
-		routingKey,
-		exchangeName,
-		false,
-		nil,
-	)
-	if err != nil {
-		logger.Fatal("Failed to bind queue", zap.Error(err))
-	}
-
-	msgs, err := ch.Consume(
+	msgs, err := rmqService.Channel.Consume(
 		queueName,
 		"",
 		false,

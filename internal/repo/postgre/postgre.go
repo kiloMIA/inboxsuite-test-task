@@ -45,7 +45,7 @@ func LoadCache(db *pgxpool.Pool, logger *zap.Logger) (map[uint8]uint8, error) {
 		}
 		cache[classID] = roadmapID
 	}
-	logger.Info("Cache loaded from DB")
+	logger.Info("Cache loaded from DB", zap.Any("cache", cache))
 	return cache, nil
 }
 
@@ -57,6 +57,6 @@ func SaveMessage(db *pgxpool.Pool, msg models.ResultMessage, logger *zap.Logger)
 		logger.Error("Failed to insert message into database", zap.Error(err))
 		return err
 	}
-	logger.Info("Message saved to DB", zap.Any("msg", msg))
+	logger.Info("Message saved to database", zap.Any("msg", msg))
 	return nil
 }

@@ -10,6 +10,7 @@ import (
 )
 
 type RMQService struct {
+	Conn         *amqp.Connection
 	Channel      *amqp.Channel
 	ExchangeName string
 	RoutingKey   string
@@ -34,7 +35,28 @@ func NewRMQService(
 		return nil, err
 	}
 
-	_, err = ch.QueueDeclare(statsQueue, true, false, false, false, nil)
+	err = ch.ExchangeDeclare(
+		exchangeName,
+		"direct",
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
+	if err != nil {
+		logger.Error("Failed to declare an exchange", zap.Error(err))
+		return nil, err
+	}
+
+	_, err = ch.QueueDeclare(
+		statsQueue,
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
 	if err != nil {
 		logger.Error("Failed to declare queue", zap.Error(err))
 		return nil, err
@@ -43,6 +65,7 @@ func NewRMQService(
 	logger.Info("RabbitMQ service initialized")
 
 	return &RMQService{
+		Conn:         conn,
 		Channel:      ch,
 		ExchangeName: exchangeName,
 		RoutingKey:   routingKey,
@@ -115,5 +138,14 @@ func (r *RMQService) SendStats(final bool) {
 
 	if final {
 		r.Logger.Info("Final event count", zap.Int32("count", statsMsg.Count))
+	}
+}
+
+func (r *RMQService) Close() {
+	if err := r.Channel.Close(); err != nil {
+		r.Logger.Error("Failed to close channel", zap.Error(err))
+	}
+	if err := r.Conn.Close(); err != nil {
+		r.Logger.Error("Failed to close connection", zap.Error(err))
 	}
 }
