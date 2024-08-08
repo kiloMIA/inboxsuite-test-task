@@ -3,19 +3,22 @@ package service
 import (
 	"inboxsuite/internal/models"
 	"inboxsuite/internal/repo"
+	"math/rand"
 	"sync"
+	"time"
 
 	"go.uber.org/zap"
 )
 
 type Service struct {
-	Repo      *repo.Repository
-	ProcessCh chan models.ProfileMessage
-	Cache     map[uint8]uint8
-	CacheLock sync.RWMutex
-	Processed sync.Map
-	WG        sync.WaitGroup
-	Logger    *zap.Logger
+	Repo       *repo.Repository
+	ProcessCh  chan models.ProfileMessage
+	Cache      map[uint8]uint8
+	CacheLock  sync.RWMutex
+	Processed  sync.Map
+	WG         sync.WaitGroup
+	Logger     *zap.Logger
+	EventCount int32
 }
 
 func NewService(repo *repo.Repository, numWorkers int, logger *zap.Logger) *Service {
@@ -80,7 +83,7 @@ func (s *Service) processMessages() {
 		if err != nil {
 			s.Logger.Error("Failed to send result message", zap.Error(err))
 		}
-		s.Repo.RMQ.IncrementCounter()
+		s.IncrementCounter()
 
 		err = s.Repo.SaveMessage(resultMsg, s.Logger)
 		if err != nil {
@@ -94,9 +97,39 @@ func (s *Service) ProcessMessage(profileMsg models.ProfileMessage) {
 	s.ProcessCh <- profileMsg
 }
 
+func (s *Service) StartAutomaticMessageGeneration() {
+	go func() {
+		s.Logger.Info("Starting automatic message generation")
+
+		for classID := range s.Cache {
+			profileID := rand.Int63n(100000)
+			profileMsg := models.ProfileMessage{
+				ProfileID: profileID,
+				ClassID:   classID,
+			}
+			s.ProcessMessage(profileMsg)
+			time.Sleep(100 * time.Millisecond)
+		}
+	}()
+}
+
+func (s *Service) IncrementCounter() {
+	s.EventCount++
+	if s.EventCount%10 == 0 {
+		s.sendStats()
+	}
+}
+
+func (s *Service) sendStats() {
+	statsMsg := models.StatsMessage{
+		Count: s.EventCount,
+	}
+	s.Repo.RMQ.SendStatsMessage(statsMsg)
+}
+
 func (s *Service) Stop() {
 	close(s.ProcessCh)
 	s.WG.Wait()
-	s.Repo.RMQ.SendStats(true)
+	s.sendStats()
 	s.Logger.Info("All workers stopped")
 }

@@ -58,7 +58,20 @@ func NewRMQService(
 		nil,
 	)
 	if err != nil {
-		logger.Error("Failed to declare queue", zap.Error(err))
+		logger.Error("Failed to declare stats queue", zap.Error(err))
+		return nil, err
+	}
+
+	_, err = ch.QueueDeclare(
+		"profile_queue",
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
+	if err != nil {
+		logger.Error("Failed to declare profile queue", zap.Error(err))
 		return nil, err
 	}
 
@@ -99,25 +112,11 @@ func (r *RMQService) SendMessage(msg models.ResultMessage) error {
 	return err
 }
 
-func (r *RMQService) IncrementCounter() {
-	count := atomic.AddInt32(&r.EventCount, 1)
-	r.Logger.Info("Incremented event count", zap.Int32("count", count))
-	if count%10 == 0 {
-		r.SendStats(false)
-	}
-}
-
-func (r *RMQService) SendStats(final bool) {
-	statsMsg := struct {
-		Count int32 `json:"count"`
-	}{
-		Count: atomic.LoadInt32(&r.EventCount),
-	}
-
+func (r *RMQService) SendStatsMessage(statsMsg models.StatsMessage) error {
 	body, err := json.Marshal(statsMsg)
 	if err != nil {
 		r.Logger.Error("Failed to marshal stats message", zap.Error(err))
-		return
+		return err
 	}
 
 	err = r.Channel.Publish(
@@ -135,9 +134,14 @@ func (r *RMQService) SendStats(final bool) {
 	} else {
 		r.Logger.Info("Stats message published", zap.Any("statsMsg", statsMsg))
 	}
+	return err
+}
 
-	if final {
-		r.Logger.Info("Final event count", zap.Int32("count", statsMsg.Count))
+func (r *RMQService) IncrementCounter() {
+	count := atomic.AddInt32(&r.EventCount, 1)
+	r.Logger.Info("Incremented event count", zap.Int32("count", count))
+	if count%10 == 0 {
+		r.SendStatsMessage(models.StatsMessage{Count: count})
 	}
 }
 

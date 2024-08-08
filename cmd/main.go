@@ -48,6 +48,18 @@ func main() {
 	}
 	defer rmqService.Close()
 
+	_, err = rmqService.Channel.QueueDeclare(
+		queueName,
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
+	if err != nil {
+		logger.Fatal("Failed to declare profile queue", zap.Error(err))
+	}
+
 	repository := repo.NewRepository(dbpool, rmqService)
 	service := service.NewService(repository, *numWorkers, logger)
 
@@ -56,6 +68,8 @@ func main() {
 	}
 
 	service.StartWorkers(*numWorkers)
+
+	service.StartAutomaticMessageGeneration()
 
 	msgs, err := rmqService.Channel.Consume(
 		queueName,

@@ -10,3 +10,7 @@ type ResultMessage struct {
 	ClassID   uint8 `json:"classID"`
 	RoadmapID uint8 `json:"roadmapID"`
 }
+
+type StatsMessage struct {
+	Count int32 `json:"count"`
+}

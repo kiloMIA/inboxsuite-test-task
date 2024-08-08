@@ -4,10 +4,9 @@ BEGIN
         INSERT INTO messages (profile_id, class_id, roadmap_id, created_at) 
         VALUES (
             (RANDOM() * 100000)::BIGINT,  
-            (RANDOM() * 255)::SMALLINT,   
+            i,
             (RANDOM() * 255)::SMALLINT,   
             CURRENT_TIMESTAMP + (i || ' seconds')::INTERVAL  
         );
     END LOOP; 
 END $$;
-
